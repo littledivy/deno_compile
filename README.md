@@ -7,11 +7,10 @@ Notable features:
 - Icon support (Windows).
 - Source protection.
 - Copyright labels.
-- Build scripts. (TBD)
 - Embedded assets.
 
 ```shell
-denoc bundle.js --icon icon.ico
+denoc --assets=example.json,sample.txt --icon=icon.ico bundle.js myExecutable
 ```
 
 ![](example.png)
