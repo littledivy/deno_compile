@@ -1,8 +1,17 @@
 # deno_compile
 
-Experminental `deno compile` alternative with icon support, source protection,
-copyright labels, build scripts and embedded assets.
+Experminental `deno compile` alternative.
+
+Notable features:
+
+- Icon support (Windows).
+- Source protection.
+- Copyright labels.
+- Build scripts. (TBD)
+- Embedded assets. (TBD)
 
 ```shell
 denoc bundle.js --icon icon.ico
 ```
+
+![](example.png)
