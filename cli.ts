@@ -75,9 +75,21 @@ async function compileSource() {
   spinner.stop();
 }
 
-async function embed(bundle: string) {
-  const spinner = wait("Embedding source").start();
+interface EmbedOptions {
+  assets?: string[];
+}
 
+async function embed(bundle: string, options?: EmbedOptions) {
+  const spinner = wait("Embedding source").start();
+  if (options?.assets) {
+    // TODO: use readFile instead
+    const assetsObj = JSON.stringify(
+      Object.fromEntries(
+        options.assets.map((asset) => [asset, Deno.readTextFileSync(asset)]),
+      ),
+    );
+    bundle = `globalThis.Assets = ${assetsObj};\n` + bundle;
+  }
   const cliSource = await Deno.readTextFile(DENO_CLI_SOURCE);
   let skip: boolean = false;
   let newSource = cliSource
@@ -97,8 +109,8 @@ pub fn main() {
     #[cfg(windows)]
     colors::enable_ansi(); // For Windows 10
 
-    let code = String::from(r#"${bundle}"#);
-    unwrap_or_exit(tokio_util::run_basic(eval_command(Default::default(), code, "js".to_string(), false)));
+    let code = stringify!(${bundle});
+    unwrap_or_exit(tokio_util::run_basic(eval_command(Default::default(), code.to_string(), "js".to_string(), false)));
 }`;
   await Deno.writeTextFile(DENO_CLI_SOURCE, newSource);
   spinner.succeed();
@@ -111,6 +123,6 @@ async function moveBuild(name: string) {
 }
 
 await initaliseSource();
-await embed(source);
+await embed(source, { assets: ["README.md"] });
 await compileSource();
 await moveBuild(destFile);
