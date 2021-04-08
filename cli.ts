@@ -10,11 +10,6 @@ const DENO_CARGO_TOML = DENO_DIR + "cli/Cargo.toml";
 const DENO_CLI_SOURCE = DENO_DIR + "cli/main.rs";
 const RELEASE_BINARY = DENO_DIR + "target/release/deno";
 
-const args = parse(Deno.args);
-const source = await Deno.readTextFile(args._[0].toString());
-const destFile = args._[1].toString() || "deno";
-const { icon } = args;
-
 async function cloneDeno() {
   let p = Deno.run({
     cmd: ["git", "clone", "https://github.com/denoland/deno", DENO_DIR],
@@ -94,7 +89,7 @@ async function embed(bundle: string, options?: EmbedOptions) {
   let skip: boolean = false;
   let newSource = cliSource
     .split("\n")
-    .map((v) => {
+    .map((v: string) => {
       if (v.includes("fn main()")) {
         skip = true;
       } else if (!skip) {
@@ -122,7 +117,25 @@ async function moveBuild(name: string) {
   await Deno.rename(RELEASE_BINARY, name);
 }
 
+const args = parse(Deno.args);
+const source = await Deno.readTextFile(args._[0].toString());
+const destFile = args._[1].toString() || "deno";
+const { icon, name, copyright, desc, assets } = args;
+
+class Backup {
+  toml: string = Deno.readTextFileSync(DENO_CARGO_TOML);
+  cliSource: string = Deno.readTextFileSync(DENO_CLI_SOURCE);
+  async restore() {
+    await Deno.writeTextFile(DENO_CARGO_TOML, this.toml);
+    await Deno.writeTextFile(DENO_CLI_SOURCE, this.cliSource);
+  }
+}
+
+let originalSource = new Backup();
+window.addEventListener("unload", () => originalSource.restore());
 await initaliseSource();
-await embed(source, { assets: ["README.md"] });
+await embed(source, {
+  assets: assets?.split(",").map((v: string) => v.trim()),
+});
 await compileSource();
 await moveBuild(destFile);
