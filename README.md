@@ -8,7 +8,7 @@ Notable features:
 - Source protection.
 - Copyright labels.
 - Build scripts. (TBD)
-- Embedded assets. (TBD)
+- Embedded assets.
 
 ```shell
 denoc bundle.js --icon icon.ico
