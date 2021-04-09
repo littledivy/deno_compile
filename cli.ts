@@ -54,9 +54,17 @@ async function setMeta(meta: WindowsMetaData) {
   await Deno.writeTextFile(DENO_CARGO_TOML, manipulated);
 }
 
-async function compileSource() {
+interface CompileOptions {
+  optLevel?: "0" | "1" | "2" | "3" | "s" | "z";
+}
+
+async function compileSource(options?: CompileOptions) {
+  let buildCommand = ["cargo", "build", "--release"];
+  if (options!.optLevel) {
+    buildCommand.push(`-O=${options!.optLevel}`);
+  }
   let p = Deno.run({
-    cmd: ["cargo", "build", "--release"],
+    cmd: buildCommand,
     stdout: "piped",
     stdin: "piped",
     stderr: "piped",
@@ -120,7 +128,7 @@ async function moveBuild(name: string) {
 const args = parse(Deno.args);
 const source = await Deno.readTextFile(args._[0].toString());
 const destFile = args._[1].toString() || "deno";
-const { icon, name, copyright, desc, assets } = args;
+const { icon, name, copyright, desc, assets, opt } = args;
 
 class Backup {
   toml: string = Deno.readTextFileSync(DENO_CARGO_TOML);
@@ -137,5 +145,5 @@ await initaliseSource();
 await embed(source, {
   assets: assets?.split(",").map((v: string) => v.trim()),
 });
-await compileSource();
+await compileSource({ optLevel: opt });
 await moveBuild(destFile);

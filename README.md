@@ -8,6 +8,7 @@ Notable features:
 - Source protection.
 - Copyright labels.
 - Embedded assets.
+- Binary optiomization level.
 
 ```shell
 denoc --assets=example.json,sample.txt --icon=icon.ico bundle.js myExecutable
