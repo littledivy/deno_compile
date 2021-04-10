@@ -8,6 +8,7 @@ import { wait } from "https://deno.land/x/wait/mod.ts";
 const DENO_DIR = ".deno/";
 const DENO_CARGO_TOML = DENO_DIR + "cli/Cargo.toml";
 const DENO_CLI_SOURCE = DENO_DIR + "cli/main.rs";
+const BUNDLE_LOC = DENO_DIR + "cli/$bundle.js";
 const RELEASE_BINARY = DENO_DIR + "target/release/deno";
 
 async function cloneDeno() {
@@ -82,16 +83,31 @@ interface EmbedOptions {
   assets?: string[];
 }
 
-async function embed(bundle: string, options?: EmbedOptions) {
+async function bundle(source: string) {
+  let p = Deno.run({
+    // Prefer `--no-check` - tsc slows things up
+    cmd: ["deno", "bundle", "--no-check", source, BUNDLE_LOC],
+  });
+  const spinner = wait(
+    `Bundling ${source}`,
+  ).start();
+  await p.status();
+  spinner.succeed();
+  spinner.stop();
+  return await Deno.readTextFile(BUNDLE_LOC);
+}
+
+async function embed(source: string, options?: EmbedOptions) {
+  let b = await bundle(source);
   const spinner = wait("Embedding source").start();
   if (options?.assets) {
-    // TODO: use readFile instead
     const assetsObj = JSON.stringify(
       Object.fromEntries(
         options.assets.map((asset) => [asset, Deno.readTextFileSync(asset)]),
       ),
     );
-    bundle = `globalThis.Assets = ${assetsObj};\n` + bundle;
+    b = `globalThis.Assets = ${assetsObj};\n` + b;
+    await Deno.writeTextFile(BUNDLE_LOC, b);
   }
   const cliSource = await Deno.readTextFile(DENO_CLI_SOURCE);
   let skip: boolean = false;
@@ -112,7 +128,7 @@ pub fn main() {
     #[cfg(windows)]
     colors::enable_ansi(); // For Windows 10
 
-    let code = stringify!(${bundle});
+    let code = include_str!("$bundle.js");
     unwrap_or_exit(tokio_util::run_basic(eval_command(Default::default(), code.to_string(), "js".to_string(), false)));
 }`;
   await Deno.writeTextFile(DENO_CLI_SOURCE, newSource);
@@ -126,7 +142,7 @@ async function moveBuild(name: string) {
 }
 
 const args = parse(Deno.args);
-const source = await Deno.readTextFile(args._[0].toString());
+const source = args._[0].toString();
 const destFile = args._[1].toString() || "deno";
 const { icon, name, copyright, desc, assets, opt } = args;
 
