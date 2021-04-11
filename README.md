@@ -9,6 +9,7 @@ Notable features:
 - Copyright labels.
 - Embedded assets.
 - Binary optiomization level.
+- Minimal binary size. (~50mb) (Strips off ICU by default)
 
 ```shell
 denoc --assets=example.json,sample.txt --icon=icon.ico bundle.js myExecutable

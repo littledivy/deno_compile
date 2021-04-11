@@ -8,6 +8,7 @@ import { wait } from "https://deno.land/x/wait/mod.ts";
 const DENO_DIR = ".deno/";
 const DENO_CARGO_TOML = DENO_DIR + "cli/Cargo.toml";
 const DENO_CLI_SOURCE = DENO_DIR + "cli/main.rs";
+const DENO_ICU_SOURCE = DENO_DIR + "core/runtime.rs";
 const BUNDLE_LOC = DENO_DIR + "cli/$bundle.js";
 const RELEASE_BINARY = DENO_DIR + "target/release/deno";
 
@@ -81,6 +82,7 @@ async function compileSource(options?: CompileOptions) {
 
 interface EmbedOptions {
   assets?: string[];
+  icu: boolean;
 }
 
 async function bundle(source: string) {
@@ -132,6 +134,22 @@ pub fn main() {
     unwrap_or_exit(tokio_util::run_basic(eval_command(Default::default(), code.to_string(), "js".to_string(), false)));
 }`;
   await Deno.writeTextFile(DENO_CLI_SOURCE, newSource);
+
+  if (!options!.icu) {
+    // Removes the ICU data file (~10mb) embedded inside Deno.
+    // WARNING: Calling `Intl` APIs without ICU data will result in segfaults.
+    // https://github.com/denoland/deno/pull/10114#issuecomment-817160015
+    let icuSource = await Deno.readTextFile(DENO_ICU_SOURCE);
+    icuSource = icuSource.replace(
+      `#[repr(C, align(16))]
+      struct IcuData([u8; 10413584]);
+      static ICU_DATA: IcuData = IcuData(*include_bytes!("icudtl.dat"));
+      v8::icu::set_common_data(&ICU_DATA.0).unwrap();`,
+      "",
+    );
+    await Deno.writeTextFile(DENO_ICU_SOURCE, icuSource);
+  }
+
   spinner.succeed();
   spinner.stop();
 }
@@ -144,7 +162,7 @@ async function moveBuild(name: string) {
 const args = parse(Deno.args);
 const source = args._[0].toString();
 const destFile = args._[1].toString() || "deno";
-const { icon, name, copyright, desc, assets, opt } = args;
+const { icon, name, copyright, desc, assets, opt, icu } = args;
 
 class Backup {
   toml: string = Deno.readTextFileSync(DENO_CARGO_TOML);
@@ -160,6 +178,7 @@ window.addEventListener("unload", () => originalSource.restore());
 await initaliseSource();
 await embed(source, {
   assets: assets?.split(",").map((v: string) => v.trim()),
+  icu: !!icu,
 });
 await compileSource({ optLevel: opt });
 await moveBuild(destFile);
