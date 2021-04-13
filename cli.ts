@@ -12,17 +12,29 @@ const DENO_ICU_SOURCE = DENO_DIR + "core/runtime.rs";
 const BUNDLE_LOC = DENO_DIR + "cli/$bundle.js";
 const RELEASE_BINARY = DENO_DIR + "target/release/deno";
 
+export async function requires(...executables: string[]) {
+  const where = Deno.build.os === "windows" ? "where" : "which";
+
+  for (const executable of executables) {
+    const process = Deno.run({
+      cmd: [where, executable],
+      stderr: "null",
+      stdin: "null",
+      stdout: "null",
+    });
+
+    if (!(await process.status()).success) {
+      console.log(`could not find required build tool ${executable}`);
+      Deno.exit(1);
+    }
+  }
+}
+
 async function cloneDeno() {
-  let p = Deno.run({
-    cmd: ["git", "clone", "https://github.com/denoland/deno", DENO_DIR],
-    stdout: "piped",
-    stdin: "piped",
-    stderr: "piped",
-  });
-  const spinner = wait("Cloning https://github.com/denoland/deno").start();
-  await p.output();
-  spinner.succeed();
-  spinner.stop();
+  await dispatch(
+    ["git", "clone", "https://github.com/denoland/deno", DENO_DIR],
+    "Cloning https://github.com/denoland/deno",
+  );
 }
 
 async function initaliseSource() {
@@ -85,17 +97,27 @@ interface EmbedOptions {
   icu: boolean;
 }
 
-async function bundle(source: string) {
+async function dispatch(
+  cmd: string[],
+  text: string = "Loading...",
+  deno_cwd: boolean = false,
+) {
   let p = Deno.run({
-    // Prefer `--no-check` - tsc slows things up
-    cmd: ["deno", "bundle", "--no-check", source, BUNDLE_LOC],
+    cmd,
+    cwd: deno_cwd ? DENO_DIR : ".",
   });
-  const spinner = wait(
-    `Bundling ${source}`,
-  ).start();
+  const spinner = wait(text).start();
   await p.status();
   spinner.succeed();
   spinner.stop();
+}
+
+async function bundle(source: string) {
+  // Prefer `--no-check` - tsc slows things up
+  await dispatch(
+    ["deno", "bundle", "--no-check", source, BUNDLE_LOC],
+    `Bundling ${source}`,
+  );
   return await Deno.readTextFile(BUNDLE_LOC);
 }
 
@@ -159,6 +181,13 @@ async function moveBuild(name: string) {
   await Deno.rename(RELEASE_BINARY, name);
 }
 
+async function binaryOpt(loc: string) {
+  await dispatch(["strip", loc], "Stripping debug symbols");
+  await dispatch(["upx", loc], "Compressing binary with UPX");
+}
+
+await requires("git", "deno");
+
 const args = parse(Deno.args);
 const source = args._[0].toString();
 const destFile = args._[1].toString() || "deno";
@@ -182,3 +211,7 @@ await embed(source, {
 });
 await compileSource({ optLevel: opt });
 await moveBuild(destFile);
+if (Deno.build.os === "linux") {
+  await requires("strip", "upx");
+  await binaryOpt(destFile);
+}
