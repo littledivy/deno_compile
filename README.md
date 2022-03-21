@@ -5,7 +5,7 @@ Experminental `deno compile` alternative.
 Notable features:
 
 - Icon support (Windows).
-- Source protection.
+- ~~Source protection.~~
 - Copyright labels.
 - Embedded assets.
 - Binary optiomization level.
